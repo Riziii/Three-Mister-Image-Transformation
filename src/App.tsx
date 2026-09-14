@@ -619,8 +619,8 @@ export default function App() {
       </main>
 
       {/* Footer Section */}
-      <footer className="bg-slate-900 text-slate-400 py-20 mt-20 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-12">
+      <footer className="bg-slate-900 text-slate-400 mt-20 border-t border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 pt-16 pb-12 grid md:grid-cols-4 gap-12">
           <div className="md:col-span-2 space-y-6">
             <div className="flex items-center gap-3 text-white">
               <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center p-1.5 border border-white/10">
@@ -628,7 +628,7 @@ export default function App() {
               </div>
               <span className="text-2xl font-bold">Three Mister Image Transformation</span>
             </div>
-            <p className="max-w-md text-slate-500 leading-relaxed">
+            <p className="max-w-md text-slate-400 leading-relaxed text-sm">
               Platform AI tercanggih untuk transformasi visual. Nikmati kemudahan mengubah foto favoritmu menjadi karya seni digital dengan satu klik.
             </p>
           </div>
@@ -643,11 +643,19 @@ export default function App() {
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Informasi</h5>
-            <p className="text-xs">© 2026 Three Mister Image Transformation. Seluruh hak cipta dilindungi.</p>
-            <div className="flex gap-4">
-              <span className="text-white hover:text-red-800 cursor-pointer">Terms</span>
-              <span className="text-white hover:text-red-800 cursor-pointer">Privacy</span>
+            <div className="flex gap-4 text-sm">
+              <span className="text-slate-400 hover:text-white cursor-pointer transition-colors">Terms</span>
+              <span className="text-slate-400 hover:text-white cursor-pointer transition-colors">Privacy</span>
             </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar - Maroon #580001 */}
+        <div className="w-full bg-[#580001] py-4 border-t border-red-950/50">
+          <div className="max-w-7xl mx-auto px-4 text-center">
+            <p className="text-sm text-white/95 font-medium tracking-wide">
+              © 2026 Three Mister. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>
