@@ -48,9 +48,13 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
-// Initialize Gemini AI
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+// Initialize Gemini AI helper
+const getGeminiClient = () => {
+  const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) 
+    || (import.meta as any).env?.VITE_GEMINI_API_KEY 
+    || '';
+  return new GoogleGenAI({ apiKey });
+};
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
 
@@ -130,8 +134,12 @@ export default function App() {
     const targetImage = isEnhancing ? generatedImage : sourceImage;
     if (!targetImage) return;
 
-    if (!GEMINI_API_KEY) {
-      setError('API Key tidak ditemukan. Harap konfigurasi di Secrets panel.');
+    const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) 
+      || (import.meta as any).env?.VITE_GEMINI_API_KEY 
+      || '';
+
+    if (!apiKey) {
+      setError('API Key Gemini tidak ditemukan. Jika menjalankan di GitHub Pages atau hosting lain, pastikan GEMINI_API_KEY atau VITE_GEMINI_API_KEY telah dikonfigurasi.');
       return;
     }
 
@@ -139,6 +147,7 @@ export default function App() {
     setError(null);
 
     try {
+      const ai = getGeminiClient();
       const base64Data = targetImage.split(',')[1];
       const mimeType = targetImage.split(';')[0].split(':')[1];
 
