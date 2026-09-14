@@ -48,13 +48,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
-// Initialize Gemini AI helper
-const getGeminiClient = () => {
-  const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) 
-    || (import.meta as any).env?.VITE_GEMINI_API_KEY 
-    || '';
-  return new GoogleGenAI({ apiKey });
-};
+// Initialize Gemini AI
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
 
@@ -134,12 +130,8 @@ export default function App() {
     const targetImage = isEnhancing ? generatedImage : sourceImage;
     if (!targetImage) return;
 
-    const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) 
-      || (import.meta as any).env?.VITE_GEMINI_API_KEY 
-      || '';
-
-    if (!apiKey) {
-      setError('API Key Gemini tidak ditemukan. Jika menjalankan di GitHub Pages atau hosting lain, pastikan GEMINI_API_KEY atau VITE_GEMINI_API_KEY telah dikonfigurasi.');
+    if (!GEMINI_API_KEY) {
+      setError('API Key tidak ditemukan. Harap konfigurasi di Secrets panel.');
       return;
     }
 
@@ -147,7 +139,6 @@ export default function App() {
     setError(null);
 
     try {
-      const ai = getGeminiClient();
       const base64Data = targetImage.split(',')[1];
       const mimeType = targetImage.split(';')[0].split(':')[1];
 
@@ -620,8 +611,8 @@ export default function App() {
 
       {/* Footer Section */}
       <footer className="bg-slate-900 text-slate-400 mt-20 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 pt-16 pb-12 grid md:grid-cols-4 gap-12">
-          <div className="md:col-span-2 space-y-6">
+        <div className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-4 gap-12">
+          <div className="md:col-span-2 space-y-5">
             <div className="flex items-center gap-3 text-white">
               <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center p-1.5 border border-white/10">
                 <Logo className="w-full h-full" color="#ffffff" />
@@ -635,25 +626,27 @@ export default function App() {
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Teknologi</h5>
-            <ul className="space-y-2 text-sm">
-              <li>Neural Artist Engine</li>
-              <li>HD Upscaling</li>
+            <ul className="space-y-2 text-sm text-slate-400">
+              <li className="hover:text-white transition-colors">Neural Artist Engine</li>
+              <li className="hover:text-white transition-colors">HD Upscaling</li>
+              <li className="hover:text-white transition-colors">Gemini Multimodal AI</li>
             </ul>
           </div>
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Informasi</h5>
-            <div className="flex gap-4 text-sm">
-              <span className="text-slate-400 hover:text-white cursor-pointer transition-colors">Terms</span>
-              <span className="text-slate-400 hover:text-white cursor-pointer transition-colors">Privacy</span>
+            <div className="flex flex-col gap-2 text-sm text-slate-400">
+              <a href="#terms" className="hover:text-white transition-colors">Terms of Service</a>
+              <a href="#privacy" className="hover:text-white transition-colors">Privacy Policy</a>
+              <a href="#support" className="hover:text-white transition-colors">Bantuan & Kontak</a>
             </div>
           </div>
         </div>
 
         {/* Bottom Bar - Maroon #580001 */}
-        <div className="w-full bg-[#580001] py-4 border-t border-red-950/50">
-          <div className="max-w-7xl mx-auto px-4 text-center">
-            <p className="text-sm text-white/95 font-medium tracking-wide">
+        <div id="footer-bottom-bar" className="bg-[#580001] border-t border-[#6e0002] py-4">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col items-center justify-center">
+            <p className="text-sm font-medium text-white/95 tracking-wide text-center">
               © 2026 Three Mister. All rights reserved.
             </p>
           </div>
