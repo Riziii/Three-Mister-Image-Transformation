@@ -48,9 +48,16 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
-// Initialize Gemini AI
+// Gemini API Configuration
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+// Initialize Gemini AI lazily to prevent module evaluation crashes when deployed statically
+const getAIClient = () => {
+  if (!GEMINI_API_KEY) {
+    throw new Error('API Key Gemini belum diatur. Pastikan GEMINI_API_KEY telah dikonfigurasi di environment atau repository secrets GitHub Actions.');
+  }
+  return new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+};
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
 
@@ -177,6 +184,7 @@ export default function App() {
         }
       }
 
+      const ai = getAIClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -610,32 +618,32 @@ export default function App() {
       </main>
 
       {/* Footer Section */}
-      <footer className="bg-slate-900 text-slate-400 mt-20 border-t border-slate-800">
+      <footer id="footer-section" className="bg-[#580001] text-red-100/90 mt-20 border-t border-[#6e0002]">
         <div className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-4 gap-12">
           <div className="md:col-span-2 space-y-5">
             <div className="flex items-center gap-3 text-white">
-              <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center p-1.5 border border-white/10">
-                <Logo className="w-full h-full" color="#ffffff" />
+              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1.5 shadow-md shadow-black/20">
+                <Logo className="w-full h-full" color="#580001" />
               </div>
-              <span className="text-2xl font-bold">Three Mister Image Transformation</span>
+              <span className="text-2xl font-bold tracking-tight text-white">Three Mister Image Transformation</span>
             </div>
-            <p className="max-w-md text-slate-400 leading-relaxed text-sm">
+            <p className="max-w-md text-red-100/80 leading-relaxed text-sm">
               Platform AI tercanggih untuk transformasi visual. Nikmati kemudahan mengubah foto favoritmu menjadi karya seni digital dengan satu klik.
             </p>
           </div>
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Teknologi</h5>
-            <ul className="space-y-2 text-sm text-slate-400">
-              <li className="hover:text-white transition-colors">Neural Artist Engine</li>
-              <li className="hover:text-white transition-colors">HD Upscaling</li>
-              <li className="hover:text-white transition-colors">Gemini Multimodal AI</li>
+            <ul className="space-y-2.5 text-sm text-red-100/80">
+              <li className="hover:text-white transition-colors cursor-pointer">Neural Artist Engine</li>
+              <li className="hover:text-white transition-colors cursor-pointer">HD Upscaling</li>
+              <li className="hover:text-white transition-colors cursor-pointer">Gemini Multimodal AI</li>
             </ul>
           </div>
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Informasi</h5>
-            <div className="flex flex-col gap-2 text-sm text-slate-400">
+            <div className="flex flex-col gap-2.5 text-sm text-red-100/80">
               <a href="#terms" className="hover:text-white transition-colors">Terms of Service</a>
               <a href="#privacy" className="hover:text-white transition-colors">Privacy Policy</a>
               <a href="#support" className="hover:text-white transition-colors">Bantuan & Kontak</a>
@@ -644,9 +652,9 @@ export default function App() {
         </div>
 
         {/* Bottom Bar - Maroon #580001 */}
-        <div id="footer-bottom-bar" className="bg-[#580001] border-t border-[#6e0002] py-4">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col items-center justify-center">
-            <p className="text-sm font-medium text-white/95 tracking-wide text-center">
+        <div id="footer-bottom-bar" className="bg-[#580001] border-t border-white/15 py-5">
+          <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
+            <p className="text-sm font-medium text-white tracking-wider text-center">
               © 2026 Three Mister. All rights reserved.
             </p>
           </div>
