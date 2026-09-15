@@ -1,7 +1,7 @@
 {
   "name": "three-mister-image-transformation",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "./",
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist",
+    "deploy": "gh-pages -d dist -t true",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

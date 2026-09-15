@@ -653,10 +653,13 @@ export default function App() {
 
         {/* Bottom Bar - Maroon #580001 */}
         <div id="footer-bottom-bar" className="bg-[#580001] border-t border-white/15 py-5">
-          <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
-            <p className="text-sm font-medium text-white tracking-wider text-center">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-sm font-medium text-white tracking-wider text-center sm:text-left">
               © 2026 Three Mister. All rights reserved.
             </p>
+            <span className="text-xs px-2.5 py-1 rounded-full bg-white/10 text-red-100 font-mono tracking-normal">
+              v1.0.1
+            </span>
           </div>
         </div>
       </footer>
