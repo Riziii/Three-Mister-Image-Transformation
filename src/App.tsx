@@ -49,7 +49,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
 // Gemini API Configuration
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_API_KEY = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || ((import.meta as any)?.env?.VITE_GEMINI_API_KEY) || '';
 
 // Initialize Gemini AI lazily to prevent module evaluation crashes when deployed statically
 const getAIClient = () => {
