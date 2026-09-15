@@ -6,30 +6,13 @@ import {defineConfig, loadEnv} from 'vite';
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
-    base: './',
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.NODE_ENV': JSON.stringify(mode),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
-      },
-    },
-    build: {
-      outDir: 'dist',
-      assetsDir: 'assets',
-      sourcemap: false,
-      chunkSizeWarningLimit: 1500,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
-            'vendor-genai': ['@google/genai'],
-            'vendor-motion': ['motion'],
-            'vendor-icons': ['lucide-react'],
-          },
-        },
       },
     },
     server: {

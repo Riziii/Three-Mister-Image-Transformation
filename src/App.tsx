@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { applyArtisticFilter, ArtMode } from './utils/artisticFilter';
+import React, { useState, useRef } from 'react';
+import { GoogleGenAI } from "@google/genai";
 import { 
   Upload, 
   Download, 
@@ -48,44 +48,9 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
-// Safely resolve the active API key
-const getEffectiveApiKey = (): string => {
-  try {
-    if (typeof process !== 'undefined' && process?.env && (process.env as any).GEMINI_API_KEY) {
-      return (process.env as any).GEMINI_API_KEY;
-    }
-  } catch {
-    // Ignore in client runtime
-  }
-  if ((import.meta as any)?.env?.VITE_GEMINI_API_KEY) {
-    return (import.meta as any).env.VITE_GEMINI_API_KEY;
-  }
-  if (typeof window !== 'undefined' && window.localStorage) {
-    const saved = window.localStorage.getItem('gemini_api_key');
-    if (saved) return saved;
-  }
-  // Decoded fallback key configured for the application (assembled at runtime)
-  try {
-    const codes = [65,81,46,65,98,56,82,78,54,76,107,105,86,45,80,48,49,57,45,53,81,70,98,80,90,54,111,84,104,100,98,56,56,52,82,72,116,80,82,65,48,77,100,74,109,79,109,108,121,52,66,118,65];
-    return String.fromCharCode(...codes);
-  } catch {
-    return '';
-  }
-};
-
-// Initialize Gemini AI dynamically on demand to make initial page load ultra lightweight & fast
-let aiClientInstance: any = null;
-const getAIClient = async () => {
-  const activeKey = getEffectiveApiKey();
-  if (!activeKey) {
-    throw new Error('API Key Gemini belum diatur. Pastikan GEMINI_API_KEY telah dikonfigurasi di environment atau repository secrets GitHub Actions.');
-  }
-  if (!aiClientInstance) {
-    const { GoogleGenAI } = await import('@google/genai');
-    aiClientInstance = new GoogleGenAI({ apiKey: activeKey });
-  }
-  return aiClientInstance;
-};
+// Initialize Gemini AI
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
 
@@ -98,28 +63,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
-  const [isApiReady, setIsApiReady] = useState(true);
-  const [engineNotice, setEngineNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Sync and ensure Gemini API key is available in browser localStorage
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        let currentKey = window.localStorage.getItem('gemini_api_key');
-        if (!currentKey) {
-          const defaultKey = getEffectiveApiKey();
-          if (defaultKey) {
-            window.localStorage.setItem('gemini_api_key', defaultKey);
-            currentKey = defaultKey;
-          }
-        }
-        setIsApiReady(!!currentKey);
-      }
-    } catch {
-      setIsApiReady(true);
-    }
-  }, []);
 
   const styleModes = [
     { id: 'classic-seinen', label: 'Classic', desc: 'Anime klasik 90-an dengan shading kontras.', icon: <Wind />, color: 'text-red-900' },
@@ -186,19 +130,8 @@ export default function App() {
     const targetImage = isEnhancing ? generatedImage : sourceImage;
     if (!targetImage) return;
 
-    const activeApiKey = getEffectiveApiKey();
-    if (!activeApiKey) {
-      try {
-        setIsGenerating(true);
-        const renderedArt = await applyArtisticFilter(targetImage, mode as ArtMode, isHD);
-        setGeneratedImage(renderedArt);
-        setError(null);
-        setEngineNotice(`Gaya ${mode.toUpperCase()} berhasil diproses.`);
-      } catch {
-        setError('Gagal memproses gambar. Silakan coba lagi.');
-      } finally {
-        setIsGenerating(false);
-      }
+    if (!GEMINI_API_KEY) {
+      setError('API Key tidak ditemukan. Harap konfigurasi di Secrets panel.');
       return;
     }
 
@@ -244,39 +177,22 @@ export default function App() {
         }
       }
 
-      const ai = await getAIClient();
-      let response: any = null;
-      let attempt = 0;
-      while (attempt < 2) {
-        try {
-          response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: {
-              parts: [
-                {
-                  inlineData: {
-                    data: base64Data,
-                    mimeType: mimeType,
-                  },
-                },
-                {
-                  text: prompt,
-                },
-              ],
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType,
+              },
             },
-          });
-          break;
-        } catch (callErr: any) {
-          attempt++;
-          const callErrStr = String(callErr?.message || callErr);
-          if (attempt < 2 && (callErrStr.includes('429') || callErrStr.includes('RESOURCE_EXHAUSTED') || callErr?.status === 429)) {
-            // Wait 1.5 seconds and retry automatically
-            await new Promise((res) => setTimeout(res, 1500));
-            continue;
-          }
-          throw callErr;
-        }
-      }
+            {
+              text: prompt,
+            },
+          ],
+        },
+      });
 
       let foundImage = false;
       const candidates = response.candidates || [];
@@ -298,21 +214,18 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Generation error:', err);
-      const errorStr = typeof err === 'string' ? err : JSON.stringify(err);
-      
-      // Auto-fallback to local Smart Artistic Canvas Engine for any API issue or quota limit
-      try {
-        const renderedArt = await applyArtisticFilter(targetImage, mode as ArtMode, isHD);
-        setGeneratedImage(renderedArt);
-        setError(null);
-        setEngineNotice(`Gaya ${mode.toUpperCase()} berhasil dirender via Smart Artistic Engine.`);
-        return;
-      } catch (filterErr) {
-        console.error('Artistic filter error:', filterErr);
-      }
       
       let errorMessage = `Gagal memproses gambar ${mode}. Harap coba lagi nanti.`;
-      if (err.message) {
+      const errorStr = typeof err === 'string' ? err : JSON.stringify(err);
+      
+      if (
+        errorStr.includes('429') || 
+        errorStr.includes('RESOURCE_EXHAUSTED') || 
+        errorStr.includes('high demand') ||
+        err.status === 429
+      ) {
+        errorMessage = 'Server sedang sangat sibuk (High Demand) atau Kuota habis. Spikes permintaan ini biasanya sementara. Silakan coba lagi sebentar lagi (tunggu ~30 detik).';
+      } else if (err.message) {
         errorMessage = err.message;
       }
       
@@ -336,7 +249,6 @@ export default function App() {
     setSourceImage(null);
     setGeneratedImage(null);
     setError(null);
-    setEngineNotice(null);
     setCompareMode(false);
   };
 
@@ -355,15 +267,6 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-              isApiReady 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs' 
-                : 'bg-amber-50 border-amber-200 text-amber-700'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${isApiReady ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
-              <span>{isApiReady ? 'API Key: Aktif' : 'Menyiapkan API'}</span>
-            </div>
-
             <div className="hidden md:flex items-center gap-4 text-sm font-medium text-slate-500">
               <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Secure</span>
               <span className="flex items-center gap-1"><Zap size={14} className="text-amber-500" /> Fast</span>
@@ -579,25 +482,6 @@ export default function App() {
                 )}
               </div>
 
-              {engineNotice && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-3.5 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-xs text-emerald-800 flex items-start justify-between gap-3 shadow-xs"
-                >
-                  <div className="flex items-start gap-2.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-emerald-950">{engineNotice}</p>
-                      <p className="text-emerald-700/80 text-[11px] mt-0.5">Karya seni digital Anda siap dinikmati dan diunduh langsung tanpa hambatan.</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setEngineNotice(null)} className="text-emerald-600 hover:text-emerald-900 p-1">
-                    <X size={14} />
-                  </button>
-                </motion.div>
-              )}
-
               <div className="relative aspect-[4/3] rounded-[2.5rem] bg-white shadow-2xl border border-slate-200 overflow-hidden group">
                 <AnimatePresence mode="wait">
                   {generatedImage ? (
@@ -726,48 +610,35 @@ export default function App() {
       </main>
 
       {/* Footer Section */}
-      <footer id="footer-section" className="bg-[#580001] text-red-100/90 mt-20 border-t border-[#6e0002]">
-        <div className="max-w-7xl mx-auto px-4 py-16 grid md:grid-cols-4 gap-12">
-          <div className="md:col-span-2 space-y-5">
+      <footer className="bg-slate-900 text-slate-400 py-20 mt-20 border-t border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-12">
+          <div className="md:col-span-2 space-y-6">
             <div className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1.5 shadow-md shadow-black/20">
-                <Logo className="w-full h-full" color="#580001" />
+              <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center p-1.5 border border-white/10">
+                <Logo className="w-full h-full" color="#ffffff" />
               </div>
-              <span className="text-2xl font-bold tracking-tight text-white">Three Mister Image Transformation</span>
+              <span className="text-2xl font-bold">Three Mister Image Transformation</span>
             </div>
-            <p className="max-w-md text-red-100/80 leading-relaxed text-sm">
+            <p className="max-w-md text-slate-500 leading-relaxed">
               Platform AI tercanggih untuk transformasi visual. Nikmati kemudahan mengubah foto favoritmu menjadi karya seni digital dengan satu klik.
             </p>
           </div>
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Teknologi</h5>
-            <ul className="space-y-2.5 text-sm text-red-100/80">
-              <li className="hover:text-white transition-colors cursor-pointer">Neural Artist Engine</li>
-              <li className="hover:text-white transition-colors cursor-pointer">HD Upscaling</li>
-              <li className="hover:text-white transition-colors cursor-pointer">Gemini Multimodal AI</li>
+            <ul className="space-y-2 text-sm">
+              <li>Neural Artist Engine</li>
+              <li>HD Upscaling</li>
             </ul>
           </div>
           
           <div className="space-y-4">
             <h5 className="text-white font-bold uppercase text-xs tracking-widest">Informasi</h5>
-            <div className="flex flex-col gap-2.5 text-sm text-red-100/80">
-              <a href="#terms" className="hover:text-white transition-colors">Terms of Service</a>
-              <a href="#privacy" className="hover:text-white transition-colors">Privacy Policy</a>
-              <a href="#support" className="hover:text-white transition-colors">Bantuan & Kontak</a>
+            <p className="text-xs">© 2026 Three Mister Image Transformation. Seluruh hak cipta dilindungi.</p>
+            <div className="flex gap-4">
+              <span className="text-white hover:text-red-800 cursor-pointer">Terms</span>
+              <span className="text-white hover:text-red-800 cursor-pointer">Privacy</span>
             </div>
-          </div>
-        </div>
-
-        {/* Bottom Bar - Maroon #580001 */}
-        <div id="footer-bottom-bar" className="bg-[#580001] border-t border-white/15 py-5">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-sm font-medium text-white tracking-wider text-center sm:text-left">
-              © 2026 Three Mister. All rights reserved.
-            </p>
-            <span className="text-xs px-2.5 py-1 rounded-full bg-white/10 text-red-100 font-mono tracking-normal">
-              v1.0.1
-            </span>
           </div>
         </div>
       </footer>
