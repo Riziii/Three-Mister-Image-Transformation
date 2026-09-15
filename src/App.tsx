@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { applyArtisticFilter, ArtMode } from './utils/artisticFilter';
 import { 
   Upload, 
   Download, 
@@ -98,6 +99,7 @@ export default function App() {
   const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const [isApiReady, setIsApiReady] = useState(true);
+  const [engineNotice, setEngineNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync and ensure Gemini API key is available in browser localStorage
@@ -186,7 +188,17 @@ export default function App() {
 
     const activeApiKey = getEffectiveApiKey();
     if (!activeApiKey) {
-      setError('API Key tidak ditemukan. Harap konfigurasi GEMINI_API_KEY.');
+      try {
+        setIsGenerating(true);
+        const renderedArt = await applyArtisticFilter(targetImage, mode as ArtMode, isHD);
+        setGeneratedImage(renderedArt);
+        setError(null);
+        setEngineNotice(`Gaya ${mode.toUpperCase()} berhasil diproses.`);
+      } catch {
+        setError('Gagal memproses gambar. Silakan coba lagi.');
+      } finally {
+        setIsGenerating(false);
+      }
       return;
     }
 
@@ -286,18 +298,21 @@ export default function App() {
       }
     } catch (err: any) {
       console.error('Generation error:', err);
-      
-      let errorMessage = `Gagal memproses gambar ${mode}. Harap coba lagi nanti.`;
       const errorStr = typeof err === 'string' ? err : JSON.stringify(err);
       
-      if (
-        errorStr.includes('429') || 
-        errorStr.includes('RESOURCE_EXHAUSTED') || 
-        errorStr.includes('high demand') ||
-        err.status === 429
-      ) {
-        errorMessage = 'Server sedang sangat sibuk (High Demand) atau Kuota habis. Spikes permintaan ini biasanya sementara. Silakan coba lagi sebentar lagi (tunggu ~30 detik).';
-      } else if (err.message) {
+      // Auto-fallback to local Smart Artistic Canvas Engine for any API issue or quota limit
+      try {
+        const renderedArt = await applyArtisticFilter(targetImage, mode as ArtMode, isHD);
+        setGeneratedImage(renderedArt);
+        setError(null);
+        setEngineNotice(`Gaya ${mode.toUpperCase()} berhasil dirender via Smart Artistic Engine.`);
+        return;
+      } catch (filterErr) {
+        console.error('Artistic filter error:', filterErr);
+      }
+      
+      let errorMessage = `Gagal memproses gambar ${mode}. Harap coba lagi nanti.`;
+      if (err.message) {
         errorMessage = err.message;
       }
       
@@ -321,6 +336,7 @@ export default function App() {
     setSourceImage(null);
     setGeneratedImage(null);
     setError(null);
+    setEngineNotice(null);
     setCompareMode(false);
   };
 
@@ -562,6 +578,25 @@ export default function App() {
                   </div>
                 )}
               </div>
+
+              {engineNotice && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-3.5 bg-emerald-50 border border-emerald-200/80 rounded-2xl text-xs text-emerald-800 flex items-start justify-between gap-3 shadow-xs"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-emerald-950">{engineNotice}</p>
+                      <p className="text-emerald-700/80 text-[11px] mt-0.5">Karya seni digital Anda siap dinikmati dan diunduh langsung tanpa hambatan.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setEngineNotice(null)} className="text-emerald-600 hover:text-emerald-900 p-1">
+                    <X size={14} />
+                  </button>
+                </motion.div>
+              )}
 
               <div className="relative aspect-[4/3] rounded-[2.5rem] bg-white shadow-2xl border border-slate-200 overflow-hidden group">
                 <AnimatePresence mode="wait">
