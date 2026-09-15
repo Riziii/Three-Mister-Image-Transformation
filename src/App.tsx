@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { GoogleGenAI } from "@google/genai";
 import { 
   Upload, 
   Download, 
@@ -51,12 +50,17 @@ import { Logo } from './components/Logo';
 // Gemini API Configuration
 const GEMINI_API_KEY = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || ((import.meta as any)?.env?.VITE_GEMINI_API_KEY) || '';
 
-// Initialize Gemini AI lazily to prevent module evaluation crashes when deployed statically
-const getAIClient = () => {
+// Initialize Gemini AI dynamically on demand to make initial page load ultra lightweight & fast
+let aiClientInstance: any = null;
+const getAIClient = async () => {
   if (!GEMINI_API_KEY) {
     throw new Error('API Key Gemini belum diatur. Pastikan GEMINI_API_KEY telah dikonfigurasi di environment atau repository secrets GitHub Actions.');
   }
-  return new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  if (!aiClientInstance) {
+    const { GoogleGenAI } = await import('@google/genai');
+    aiClientInstance = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  }
+  return aiClientInstance;
 };
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
@@ -184,7 +188,7 @@ export default function App() {
         }
       }
 
-      const ai = getAIClient();
+      const ai = await getAIClient();
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
