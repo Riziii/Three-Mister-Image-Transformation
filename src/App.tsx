@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Upload, 
   Download, 
@@ -97,7 +97,27 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
+  const [isApiReady, setIsApiReady] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync and ensure Gemini API key is available in browser localStorage
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        let currentKey = window.localStorage.getItem('gemini_api_key');
+        if (!currentKey) {
+          const defaultKey = getEffectiveApiKey();
+          if (defaultKey) {
+            window.localStorage.setItem('gemini_api_key', defaultKey);
+            currentKey = defaultKey;
+          }
+        }
+        setIsApiReady(!!currentKey);
+      }
+    } catch {
+      setIsApiReady(true);
+    }
+  }, []);
 
   const styleModes = [
     { id: 'classic-seinen', label: 'Classic', desc: 'Anime klasik 90-an dengan shading kontras.', icon: <Wind />, color: 'text-red-900' },
@@ -213,22 +233,38 @@ export default function App() {
       }
 
       const ai = await getAIClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType,
-              },
+      let response: any = null;
+      let attempt = 0;
+      while (attempt < 2) {
+        try {
+          response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    data: base64Data,
+                    mimeType: mimeType,
+                  },
+                },
+                {
+                  text: prompt,
+                },
+              ],
             },
-            {
-              text: prompt,
-            },
-          ],
-        },
-      });
+          });
+          break;
+        } catch (callErr: any) {
+          attempt++;
+          const callErrStr = String(callErr?.message || callErr);
+          if (attempt < 2 && (callErrStr.includes('429') || callErrStr.includes('RESOURCE_EXHAUSTED') || callErr?.status === 429)) {
+            // Wait 1.5 seconds and retry automatically
+            await new Promise((res) => setTimeout(res, 1500));
+            continue;
+          }
+          throw callErr;
+        }
+      }
 
       let foundImage = false;
       const candidates = response.candidates || [];
@@ -303,6 +339,15 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-4">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              isApiReady 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-xs' 
+                : 'bg-amber-50 border-amber-200 text-amber-700'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${isApiReady ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+              <span>{isApiReady ? 'API Key: Aktif' : 'Menyiapkan API'}</span>
+            </div>
+
             <div className="hidden md:flex items-center gap-4 text-sm font-medium text-slate-500">
               <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Secure</span>
               <span className="flex items-center gap-1"><Zap size={14} className="text-amber-500" /> Fast</span>
