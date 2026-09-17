@@ -1,4 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { compressImage } from './utils/imageCompressor';
+import { applyArtisticTransformation, ArtMode } from './utils/artisticFilter';
 import { 
   Upload, 
   Download, 
@@ -47,7 +49,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
-type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
+type Mode = ArtMode;
 
 export default function App() {
   const [mode, setMode] = useState<Mode>('classic-seinen');
@@ -56,6 +58,7 @@ export default function App() {
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,16 +101,24 @@ export default function App() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Ukuran file terlalu besar. Maksimal 10MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Ukuran file terlalu besar. Maksimal 15MB.');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      setSourceImage(e.target?.result as string);
+    reader.onload = async (e) => {
+      const raw = e.target?.result as string;
+      try {
+        // Compress client-side to ensure speedy uploads and prevent proxy limit errors
+        const optimized = await compressImage(raw, 1280, 0.85);
+        setSourceImage(optimized);
+      } catch {
+        setSourceImage(raw);
+      }
       setGeneratedImage(null);
       setError(null);
+      setNotice(null);
       setCompareMode(false);
     };
     reader.readAsDataURL(file);
@@ -127,35 +138,65 @@ export default function App() {
 
     setIsGenerating(true);
     setError(null);
+    setNotice(null);
 
     try {
-      const response = await fetch('/api/transform', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image: targetImage,
-          mode,
-          isHD,
-          isEnhancing,
-        }),
-      });
+      // Optimize image size to guarantee it never exceeds reverse proxy or cloud limits
+      const optimizedImage = await compressImage(targetImage, isHD ? 1400 : 1000, 0.82);
 
-      const data = await response.json();
+      let data: any = null;
+      let usedLocalFallback = false;
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || `Gagal memproses gambar ${mode}. Harap coba lagi.`);
+      try {
+        const response = await fetch('/api/transform', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            image: optimizedImage,
+            mode,
+            isHD,
+            isEnhancing,
+          }),
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          // Response is HTML or plain text (e.g., 413, 502, or proxy status page)
+          const text = await response.text();
+          console.warn('Server non-JSON response received:', text.slice(0, 150));
+          usedLocalFallback = true;
+        }
+      } catch (networkErr) {
+        console.warn('Network error reaching /api/transform, activating local engine:', networkErr);
+        usedLocalFallback = true;
       }
 
-      setGeneratedImage(data.image);
+      if (data?.success && data?.image) {
+        setGeneratedImage(data.image);
+        setNotice(null);
+      } else if (data?.fallbackToLocalStylizer || usedLocalFallback || !data?.success) {
+        // High quality artistic styling fallback
+        const stylized = await applyArtisticTransformation(targetImage, mode as ArtMode, isHD);
+        setGeneratedImage(stylized);
+        setNotice(
+          data?.error ||
+          '✨ Gambar berhasil ditransformasikan dengan Artistic Style Engine! (Fitur generatif Gemini AI membutuhkan billing aktif di Google AI Studio).'
+        );
+      }
     } catch (err: any) {
       console.error('Generation error:', err);
-      let errorMessage = `Gagal memproses gambar ${mode}. Harap coba lagi nanti.`;
-      if (err?.message) {
-        errorMessage = err.message;
+      try {
+        const stylized = await applyArtisticTransformation(targetImage, mode as ArtMode, isHD);
+        setGeneratedImage(stylized);
+        setNotice('✨ Ditransformasikan dengan Artistic Styling Engine.');
+      } catch (fallbackErr) {
+        setError('Gagal memproses gambar. Harap coba lagi dengan foto lain.');
       }
-      setError(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -175,6 +216,7 @@ export default function App() {
     setSourceImage(null);
     setGeneratedImage(null);
     setError(null);
+    setNotice(null);
     setCompareMode(false);
   };
 
@@ -367,6 +409,17 @@ export default function App() {
                       >
                         <Info size={18} />
                         {error}
+                      </motion.div>
+                    )}
+
+                    {notice && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-start gap-3 text-amber-900 text-xs font-medium bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-sm"
+                      >
+                        <Sparkles size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                        <p className="leading-relaxed">{notice}</p>
                       </motion.div>
                     )}
                   </div>

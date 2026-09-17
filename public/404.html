@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Three Mister Image Transformation</title>
+    <script>
+      (function() {
+        var isGitHubPages = window.location.hostname.endsWith('github.io');
+        var path = window.location.pathname;
+        var segments = path.split('/').filter(Boolean);
+        // On GitHub Pages with repo path (e.g. /my-repo/page), redirect to /my-repo/
+        var base = (isGitHubPages && segments.length > 0) ? '/' + segments[0] + '/' : '/';
+        window.location.replace(base + window.location.search + window.location.hash);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to application...</p>
+  </body>
+</html>

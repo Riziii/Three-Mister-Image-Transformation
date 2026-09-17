@@ -29,11 +29,17 @@ const modePrompts: Record<string, string> = {
   'vintage-travel-sketch': 'Transform this photo into a vintage travel poster style line art. Use clean, bold dark blue outlines with a smooth hand-drawn feel on a light cream or off-white background. Add subtle, flat light-blue washes for shading and depth, avoiding complex cross-hatching. The overall aesthetic should be elegant, simplified, and reminiscent of classic architectural or city tourism poster sketches.'
 };
 
-function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY_MISSING");
+function getGeminiApiKey(): string | null {
+  const envKey = process.env.GEMINI_API_KEY;
+  if (envKey && envKey !== "MY_GEMINI_API_KEY" && envKey.trim().length > 10) {
+    return envKey.trim();
   }
+  return null;
+}
+
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return null;
   return new GoogleGenAI({
     apiKey,
     httpOptions: {
@@ -53,17 +59,18 @@ async function startServer() {
 
   // Status check endpoint
   app.get("/api/status", (_req, res) => {
+    const key = getGeminiApiKey();
     res.json({
       status: "ok",
-      hasKey: !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY",
+      hasKey: !!key && key.length > 10,
     });
   });
 
   // Image transformation endpoint
   app.post("/api/transform", async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
         return res.status(400).json({
           error: "API Key belum terkonfigurasi. Harap tambahkan GEMINI_API_KEY yang aktif di menu Settings > Secrets AI Studio.",
         });
@@ -93,8 +100,6 @@ async function startServer() {
         }
       }
 
-      const ai = getGeminiClient();
-
       // Models to try in order of preference
       const candidateModels = isHD 
         ? ["gemini-3.1-flash-image", "gemini-2.5-flash-image", "gemini-3.1-flash-lite-image"]
@@ -102,6 +107,15 @@ async function startServer() {
 
       let resultImage: string | null = null;
       let lastError: any = null;
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
 
       for (const modelName of candidateModels) {
         try {
@@ -138,12 +152,10 @@ async function startServer() {
           }
         } catch (err: any) {
           lastError = err;
-          // If unauthenticated or account disabled, don't try other models - the key itself is rejected
           const errString = String(err?.message || err);
           if (errString.includes("UNAUTHENTICATED") || errString.includes("ACCOUNT_STATE_INVALID") || err?.status === 401) {
             break;
           }
-          // Continue loop to try next model
         }
       }
 
@@ -168,13 +180,12 @@ async function startServer() {
         }
 
         if (errorStr.includes("429") || errorStr.includes("RESOURCE_EXHAUSTED") || errorStr.includes("quota")) {
-          if (errorStr.includes("limit: 0") || errorStr.includes("FreeTier")) {
-            return res.status(429).json({
-              error: "Kuota pembuatan gambar Gemini gratis pada project ini bernilai 0 (limit: 0). Fitur multimodal gambar membutuhkan project dengan Billing / Pay-as-you-go aktif di Google AI Studio.",
-            });
-          }
-          return res.status(429).json({
-            error: "Batas kuota API tercapai atau server sedang sibuk. Silakan coba kembali dalam beberapa saat.",
+          // Graceful fallback for client-side stylizer
+          return res.json({
+            success: false,
+            quotaExceeded: true,
+            fallbackToLocalStylizer: true,
+            error: "Batas kuota Gemini free-tier tercapai (limit: 0). Menerapkan Artistic Styling Engine...",
           });
         }
 
