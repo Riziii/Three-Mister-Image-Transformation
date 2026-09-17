@@ -43,10 +43,14 @@ import {
   FlaskConical,
   Waves,
   PenTool,
-  Map
+  Map,
+  Key,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
+import { ApiKeyModal } from './components/ApiKeyModal';
 
 // Initialize Gemini AI Key
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -63,6 +67,41 @@ export default function App() {
   const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Client-side API key management for deployed website support
+  const [customApiKey, setCustomApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('three_mister_gemini_api_key') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  const [keyModalError, setKeyModalError] = useState<string | null>(null);
+
+  const envApiKey = (GEMINI_API_KEY || '').trim();
+  const activeApiKey = customApiKey.trim() || envApiKey;
+
+  const handleSaveKey = (key: string) => {
+    const trimmed = key.trim();
+    setCustomApiKey(trimmed);
+    try {
+      localStorage.setItem('three_mister_gemini_api_key', trimmed);
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+    setError(null);
+    setKeyModalError(null);
+  };
+
+  const handleClearKey = () => {
+    setCustomApiKey('');
+    try {
+      localStorage.removeItem('three_mister_gemini_api_key');
+    } catch (e) {
+      console.error('Failed to remove from localStorage:', e);
+    }
+  };
 
   const styleModes = [
     { id: 'classic-seinen', label: 'Classic', desc: 'Anime klasik 90-an dengan shading kontras.', icon: <Wind />, color: 'text-red-900' },
@@ -129,13 +168,17 @@ export default function App() {
     const targetImage = isEnhancing ? generatedImage : sourceImage;
     if (!targetImage) return;
 
-    if (!GEMINI_API_KEY) {
-      setError('API Key tidak ditemukan. Harap konfigurasi di Secrets panel.');
+    if (!activeApiKey) {
+      const msg = 'API Key Google Gemini belum diatur. Silakan masukkan API Key gratis Anda agar transformasi gambar dapat berjalan di website ini.';
+      setError(msg);
+      setKeyModalError(msg);
+      setIsKeyModalOpen(true);
       return;
     }
 
     setIsGenerating(true);
     setError(null);
+    setKeyModalError(null);
 
     try {
       const base64Data = targetImage.split(',')[1];
@@ -176,7 +219,7 @@ export default function App() {
         }
       }
 
-      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: activeApiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -215,21 +258,35 @@ export default function App() {
     } catch (err: any) {
       console.error('Generation error:', err);
       
-      let errorMessage = `Gagal memproses gambar ${mode}. Harap coba lagi nanti.`;
+      const errorMsg = err?.message || String(err);
       const errorStr = typeof err === 'string' ? err : JSON.stringify(err);
       
-      if (
+      const isLeakedKey = errorStr.includes('reported as leaked') || errorMsg.includes('reported as leaked') || errorStr.includes('leaked');
+      const isForbidden = errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED') || err?.status === 403;
+      const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid');
+
+      if (isLeakedKey) {
+        const detail = 'API Key yang digunakan dilaporkan bocor (leaked) dan telah dinonaktifkan permanen oleh Google demi keamanan. Silakan masukkan API Key Gemini baru Anda (gratis di Google AI Studio).';
+        setError(detail);
+        setKeyModalError(detail);
+        setIsKeyModalOpen(true);
+      } else if (isForbidden || isInvalidKey) {
+        const detail = 'Akses ditolak (Error 403 / API Key tidak valid). Silakan periksa kembali atau masukkan API Key Gemini baru Anda.';
+        setError(detail);
+        setKeyModalError(detail);
+        setIsKeyModalOpen(true);
+      } else if (
         errorStr.includes('429') || 
         errorStr.includes('RESOURCE_EXHAUSTED') || 
         errorStr.includes('high demand') ||
         err.status === 429
       ) {
-        errorMessage = 'Server sedang sangat sibuk (High Demand) atau Kuota habis. Spikes permintaan ini biasanya sementara. Silakan coba lagi sebentar lagi (tunggu ~30 detik).';
+        setError('Server sedang sangat sibuk (High Demand) atau Kuota habis. Spikes permintaan ini biasanya sementara. Silakan coba lagi sebentar lagi (tunggu ~30 detik).');
       } else if (err.message) {
-        errorMessage = err.message;
+        setError(err.message);
+      } else {
+        setError(`Gagal memproses gambar ${mode}. Harap coba lagi nanti.`);
       }
-      
-      setError(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -266,8 +323,30 @@ export default function App() {
             </span>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-4 text-sm font-medium text-slate-500">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setKeyModalError(null);
+                setIsKeyModalOpen(true);
+              }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-xs cursor-pointer ${
+                activeApiKey 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' 
+                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 animate-pulse'
+              }`}
+              title="Konfigurasi API Key Gemini untuk website deploy"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${activeApiKey ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${activeApiKey ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              </span>
+              <Key size={13} className={activeApiKey ? 'text-emerald-600' : 'text-amber-600'} />
+              <span className="whitespace-nowrap font-bold">
+                {activeApiKey ? (customApiKey ? 'API Key Kustom' : 'API Key Aktif') : 'Atur API Key'}
+              </span>
+            </button>
+
+            <div className="hidden md:flex items-center gap-4 text-sm font-medium text-slate-500 pl-2 border-l border-slate-200">
               <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Secure</span>
               <span className="flex items-center gap-1"><Zap size={14} className="text-amber-500" /> Fast</span>
             </div>
@@ -433,14 +512,59 @@ export default function App() {
                       <div className="absolute inset-x-0 h-full w-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                     </button>
                     
+                    {/* Status Key Indicator */}
+                    <div className="flex items-center justify-between px-2 text-xs">
+                      {activeApiKey ? (
+                        <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70">
+                          <CheckCircle2 size={13} className="text-emerald-600" />
+                          <span>Gemini AI Connected ({customApiKey ? 'Kunci Kustom' : 'Kunci Bawaan'})</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setKeyModalError('Silakan masukkan API Key Gemini gratis Anda untuk mulai mentransformasi gambar.');
+                            setIsKeyModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300 transition-colors cursor-pointer"
+                        >
+                          <AlertCircle size={13} className="text-amber-600" />
+                          <span>Perlu API Key — Klik di Sini</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setKeyModalError(null);
+                          setIsKeyModalOpen(true);
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-[#800000] underline font-medium cursor-pointer"
+                      >
+                        Kelola Key
+                      </button>
+                    </div>
+                    
                     {error && (
                       <motion.div 
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex items-center gap-3 text-red-500 text-sm font-medium bg-red-50 p-4 rounded-xl border border-red-100"
+                        className="flex flex-col gap-2.5 text-red-700 text-sm font-medium bg-red-50 p-4 rounded-2xl border border-red-200 shadow-sm"
                       >
-                        <Info size={18} />
-                        {error}
+                        <div className="flex items-start gap-3">
+                          <Info size={18} className="text-red-500 shrink-0 mt-0.5" />
+                          <span className="leading-snug">{error}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setKeyModalError(error);
+                            setIsKeyModalOpen(true);
+                          }}
+                          className="self-start mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#800000] text-white text-xs font-bold rounded-xl hover:bg-red-900 transition-all shadow-sm cursor-pointer"
+                        >
+                          <Key size={13} />
+                          Atur / Ganti API Key Baru
+                        </button>
                       </motion.div>
                     )}
                   </div>
@@ -642,6 +766,17 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* API Key Modal for Deployed Website Access */}
+      <ApiKeyModal
+        isOpen={isKeyModalOpen}
+        onClose={() => setIsKeyModalOpen(false)}
+        customApiKey={customApiKey}
+        onSaveKey={handleSaveKey}
+        onClearKey={handleClearKey}
+        hasEnvKey={Boolean(envApiKey)}
+        initialError={keyModalError}
+      />
     </div>
   );
 }

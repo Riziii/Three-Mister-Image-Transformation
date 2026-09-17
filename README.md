@@ -67,10 +67,20 @@ Lalu di GitHub **Settings** > **Pages**, pastikan **Source** adalah **Deploy fro
 
 ---
 
-### 3. Konfigurasi GitHub Secrets (API Key Gemini)
+### 3. Konfigurasi API Key Gemini (Bebas Error "Leaked Key")
 
-Agar fitur transformasi gambar AI tetap berfungsi di GitHub Pages:
+> 💡 **Penting mengenai Error "Your API key was reported as leaked":**
+> Google secara otomatis memblokir permanen API Key yang pernah dimasukkan ke file repositori publik di GitHub. 
+> Sekarang aplikasi ini dilengkapi dengan **Pengatur API Key langsung di antarmuka web (UI)** yang tersimpan aman di `localStorage` peramban Anda, sehingga **tidak akan pernah bocor ke Git**.
 
+#### Cara Penggunaan di Website yang Di-Deploy:
+1. Buka website Anda yang telah aktif di GitHub Pages.
+2. Klik tombol **"Atur API Key"** di pojok kanan atas navigasi (atau melalui kotak dialog yang muncul).
+3. Masukkan Gemini API Key gratis Anda dari [Google AI Studio](https://aistudio.google.com/app/apikey).
+4. Klik **"Simpan & Aktifkan Kunci"**. Anda langsung bisa melakukan transformasi foto tanpa kendala error 403!
+
+#### (Opsional) Mengatur Default Key via GitHub Secrets:
+Jika Anda ingin kunci default terpasang saat build otomatis:
 1. Buka repositori Anda di GitHub.
 2. Masuk ke menu **Settings** > **Secrets and variables** > **Actions**.
 3. Klik tombol **New repository secret**.
@@ -79,11 +89,9 @@ Agar fitur transformasi gambar AI tetap berfungsi di GitHub Pages:
    - **Secret**: Masukkan Google Gemini API Key Anda.
 5. Klik **Add secret**.
 
-> Kunci ini akan otomatis diinjeksi oleh GitHub Actions pada proses `npm run build` sebelum dideploy ke GitHub Pages.
-
 ---
 
-### 3. Aktifkan GitHub Pages
+### 4. Aktifkan GitHub Pages
 
 1. Di repositori GitHub Anda, buka tab **Settings**.
 2. Pada menu navigasi sebelah kiri, pilih **Pages** (di bawah bagian *Code and automation*).
