@@ -53,6 +53,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { applyArtisticTransformation } from './utils/artisticFilter';
 
 // Retrieve API key across Vite, Vercel, Node, and browser environments
 const getInitialEnvApiKey = (): string => {
@@ -351,18 +352,28 @@ export default function App() {
         setGenerationStatus('Mentransformasi gambar dengan Gemini AI...');
         const response = await fetch('/api/transform', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(customApiKey ? { 'x-gemini-api-key': customApiKey } : {})
+          },
           body: JSON.stringify({
             image: `data:${mimeType};base64,${base64Data}`,
             mode,
             isHD,
             isEnhancing,
             customPrompt: prompt,
+            apiKey: customApiKey || undefined,
           }),
         });
         const data = await response.json();
         if (data.success && data.image) {
           setGeneratedImage(data.image);
+          setIsGenerating(false);
+          return;
+        } else if (data.fallbackToLocalStylizer) {
+          setGenerationStatus('Menerapkan Artistic Styling Engine...');
+          const stylized = await applyArtisticTransformation(targetImage, mode as any, isHD);
+          setGeneratedImage(stylized);
           setIsGenerating(false);
           return;
         } else {
@@ -435,7 +446,7 @@ export default function App() {
 
             const isLeakedKey = errorStr.includes('reported as leaked') || errorMsg.includes('reported as leaked') || errorStr.includes('leaked');
             const isForbidden = errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED') || err?.status === 403;
-            const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid');
+            const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid') || errorStr.includes('ACCOUNT_STATE_INVALID') || errorStr.includes('deleted or disabled') || err?.status === 401;
 
             if (isLeakedKey || isForbidden || isInvalidKey) {
               // Stop retrying immediately if key is invalid/blocked
@@ -488,7 +499,7 @@ export default function App() {
       
       const isLeakedKey = errorStr.includes('reported as leaked') || errorMsg.includes('reported as leaked') || errorStr.includes('leaked');
       const isForbidden = errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED') || err?.status === 403;
-      const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid');
+      const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid') || errorStr.includes('ACCOUNT_STATE_INVALID') || errorStr.includes('deleted or disabled') || err?.status === 401;
 
       if (isLeakedKey) {
         const detail = 'API Key yang digunakan dilaporkan bocor (leaked) dan telah dinonaktifkan permanen oleh Google demi keamanan. Silakan masukkan API Key Gemini baru Anda (gratis di Google AI Studio).';
@@ -496,7 +507,7 @@ export default function App() {
         setKeyModalError(detail);
         setIsKeyModalOpen(true);
       } else if (isForbidden || isInvalidKey) {
-        const detail = 'Akses ditolak (Error 403 / API Key tidak valid). Silakan periksa kembali atau masukkan API Key Gemini baru Anda.';
+        const detail = 'API Key atau Service account tidak aktif (Error 401/403). Silakan klik tombol "Atur API Key" untuk memasukkan Gemini API Key aktif Anda.';
         setError(detail);
         setKeyModalError(detail);
         setIsKeyModalOpen(true);
