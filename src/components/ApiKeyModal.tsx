@@ -237,6 +237,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                     Salin (*copy*) teks kunci yang diawali dengan <code>AIzaSy...</code>, lalu tempelkan (*paste*) pada kolom input di atas.
                   </li>
                 </ol>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 leading-relaxed">
+                  <span className="font-bold text-slate-800">💡 Bebas Rebutan Kuota:</span> Menggunakan API Key milik Anda sendiri memastikan kuota pemrosesan gambar Google Gemini tidak berebut dengan pengguna lain dan meminimalisir kendala server sibuk (429/High Demand).
+                </div>
               </div>
             </div>
           </motion.div>
