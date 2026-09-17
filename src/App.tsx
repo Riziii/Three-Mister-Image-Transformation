@@ -54,8 +54,45 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 import { ApiKeyModal } from './components/ApiKeyModal';
 
-// Initialize Gemini AI Key
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+// Robustly retrieve API key across Vite, Vercel, Node, and browser environments
+const getInitialEnvApiKey = (): string => {
+  // 1. Check Vite standard client environment variables (primary on Vercel)
+  try {
+    const metaEnv = (import.meta as any)?.env;
+    if (metaEnv) {
+      const viteKey = 
+        metaEnv.VITE_GEMINI_API_KEY ||
+        metaEnv.GEMINI_API_KEY ||
+        metaEnv.VITE_API_KEY ||
+        metaEnv.API_KEY;
+      if (viteKey && typeof viteKey === 'string' && viteKey.trim()) {
+        return viteKey.trim();
+      }
+    }
+  } catch {
+    // Ignore error
+  }
+
+  // 2. Check process.env (injected by vite.config.ts define or Node runtime)
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      const procKey = 
+        process.env.VITE_GEMINI_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.VITE_API_KEY ||
+        process.env.API_KEY;
+      if (procKey && typeof procKey === 'string' && procKey.trim()) {
+        return procKey.trim();
+      }
+    }
+  } catch {
+    // Ignore error
+  }
+
+  return '';
+};
+
+const GEMINI_API_KEY = getInitialEnvApiKey();
 
 // Fallback models if high-demand/rate-limit occurs on primary
 const CANDIDATE_IMAGE_MODELS = [

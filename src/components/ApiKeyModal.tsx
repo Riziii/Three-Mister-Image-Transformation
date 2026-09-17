@@ -94,7 +94,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                   <div>
                     <h2 className="text-xl font-bold tracking-tight">Konfigurasi API Key Gemini</h2>
                     <p className="text-xs text-slate-300 mt-0.5">
-                      Untuk penggunaan di website yang di-deploy (GitHub Pages, hosting publik)
+                      Untuk penggunaan di website yang di-deploy (Vercel, GitHub Pages, Netlify)
                     </p>
                   </div>
                 </div>
@@ -155,7 +155,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                       type={showKey ? 'text' : 'password'}
                       value={inputVal}
                       onChange={(e) => setInputVal(e.target.value)}
-                      placeholder="AIzaSy..."
+                      placeholder="AIzaSy... atau AQ..."
                       className="w-full pl-4 pr-24 py-3.5 bg-slate-50 border border-slate-300 focus:border-[#800000] focus:bg-white focus:ring-2 focus:ring-red-100 rounded-2xl text-sm font-mono transition-all outline-none"
                     />
                     <div className="absolute right-2 flex items-center gap-1">
@@ -171,7 +171,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
                     <Lock size={12} className="text-slate-400" />
-                    Kunci disimpan secara privat di browser Anda (<code className="bg-slate-100 px-1 py-0.5 rounded text-[10px]">localStorage</code>) dan tidak pernah dikirim ke Git.
+                    Mendukung format standar (<code>AIza...</code>) & token (<code>AQ...</code>), tersimpan privat di peramban Anda.
                   </p>
                 </div>
 
@@ -240,6 +240,15 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[11px] text-slate-600 leading-relaxed">
                   <span className="font-bold text-slate-800">💡 Bebas Rebutan Kuota:</span> Menggunakan API Key milik Anda sendiri memastikan kuota pemrosesan gambar Google Gemini tidak berebut dengan pengguna lain dan meminimalisir kendala server sibuk (429/High Demand).
+                </div>
+
+                <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3 text-[11px] text-blue-900 space-y-1 leading-relaxed">
+                  <p className="font-bold text-blue-950 flex items-center gap-1.5">
+                    <span>▲ Khusus Pengguna Vercel (vercel.app):</span>
+                  </p>
+                  <p className="text-blue-800">
+                    Buka proyek di <strong>Vercel Dashboard &gt; Settings &gt; Environment Variables</strong>, tambahkan Key dengan nama <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">VITE_GEMINI_API_KEY</code> (atau <code className="bg-white px-1 py-0.5 rounded border border-blue-200 font-mono text-[10px]">GEMINI_API_KEY</code>), lalu klik <strong>Redeploy</strong> pada tab Deployments agar variabel ter-build ke web.
+                  </p>
                 </div>
               </div>
             </div>

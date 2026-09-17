@@ -85,13 +85,36 @@ Jika Anda ingin kunci default terpasang saat build otomatis:
 2. Masuk ke menu **Settings** > **Secrets and variables** > **Actions**.
 3. Klik tombol **New repository secret**.
 4. Isi data:
-   - **Name**: `GEMINI_API_KEY`
+   - **Name**: `GEMINI_API_KEY` (atau `VITE_GEMINI_API_KEY`)
    - **Secret**: Masukkan Google Gemini API Key Anda.
 5. Klik **Add secret**.
 
 ---
 
-### 4. Aktifkan GitHub Pages
+### 4. Panduan Deploy ke Vercel (vercel.app)
+
+Jika Anda mendeploy proyek ini ke Vercel:
+
+1. **Import Proyek ke Vercel**:
+   - Hubungkan akun GitHub Anda ke [Vercel](https://vercel.com).
+   - Klik **"Add New..."** > **"Project"**, lalu pilih repositori proyek ini.
+   - Vercel akan otomatis mengenali framework **Vite** dan folder output `dist`.
+
+2. **Sinkronisasi API Key di Vercel**:
+   - Pada halaman konfigurasi sebelum deploy (atau di menu **Settings > Environment Variables** setelah import):
+   - Tambahkan Environment Variable:
+     - **Key**: `VITE_GEMINI_API_KEY` *(atau `GEMINI_API_KEY`)*
+     - **Value**: Masukkan Gemini API Key Anda (diawali dengan `AIzaSy...`)
+     - **Environments**: Centang Production, Preview, dan Development.
+   - Klik **Save**.
+   - ⚠️ **PENTING (Jika variabel ditambahkan setelah deploy):** Buka tab **Deployments** di Vercel, klik titik tiga (menu opsi) pada deployment terakhir, lalu klik **"Redeploy"** agar Vercel membungkus variabel baru ke dalam file build web.
+
+3. **Alternatif Tanpa Redeploy**:
+   - Anda juga dapat langsung membuka website `https://<nama-proyek>.vercel.app`, lalu klik tombol **"Atur API Key"** di pojok kanan atas untuk memasukkan kunci Anda. Kunci akan langsung aktif dan tersimpan aman di browser Anda.
+
+---
+
+### 5. Aktifkan GitHub Pages
 
 1. Di repositori GitHub Anda, buka tab **Settings**.
 2. Pada menu navigasi sebelah kiri, pilih **Pages** (di bawah bagian *Code and automation*).
