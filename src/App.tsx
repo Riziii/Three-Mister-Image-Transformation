@@ -48,9 +48,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
 
-// Initialize Gemini AI
+// Initialize Gemini AI Key
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
 
@@ -177,6 +176,7 @@ export default function App() {
         }
       }
 
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {

@@ -26,9 +26,24 @@ git push -u origin main
 
 ---
 
-### 2. Mengaktifkan GitHub Actions Deployment (GitHub Pages)
+### ⚠️ Mengapa Muncul Halaman Kosong Putih (Blank White Page) di GitHub Pages?
 
-Setelah repositori ter-push ke GitHub, Anda dapat mengaktifkan auto-deploy GitHub Pages dengan mudah:
+Halaman putih kosong di GitHub Pages pada proyek React/Vite hampir selalu disebabkan oleh salah satu dari 2 hal berikut:
+
+1. **GitHub Pages Menggunakan Pengaturan "Deploy from a branch" ke Branch `main` (Paling Sering Terjadi)**:
+   - Jika pengaturan GitHub Pages Anda diatur ke **Source: Deploy from a branch** (Branch: `main` / `root`), GitHub Pages hanya menyajikan file mentah repositori, yaitu `index.html` yang merujuk ke `/src/main.tsx`.
+   - Browser **tidak dapat mengeksekusi file TypeScript/JSX (`.tsx`)** secara langsung dan file belum dibundle. Akibatnya browser menampilkan halaman putih kosong!
+   - **Solusi**: Di GitHub -> **Settings** -> **Pages**, ubah **Source** menjadi **GitHub Actions** (atau gunakan `npm run deploy` via branch `gh-pages`).
+
+2. **Jalur Relative / Base Path**:
+   - Jika website diakses tanpa garis miring penutup (`/`), aset `./assets/` bisa gagal dimuat (404). Kami telah menambahkan skrip auto-redirect di `index.html` dan konfigurasi base path dinamis di `vite.config.ts`.
+   - Ditambahkan file `.nojekyll` di folder `public/` agar GitHub Pages tidak memfilter aset Vite.
+
+---
+
+### 2. Cara Deploy (Pilih Salah Satu)
+
+#### Opsi A: Otomatis via GitHub Actions (Sangat Disarankan)
 
 1. Buka repositori Anda di website **GitHub**.
 2. Klik tombol **Add file** > **Create new file**.
@@ -36,6 +51,19 @@ Setelah repositori ter-push ke GitHub, Anda dapat mengaktifkan auto-deploy GitHu
    `.github/workflows/deploy.yml`
 4. Salin (copy) seluruh isi file dari `workflows-template/deploy.yml` dan tempelkan (paste) ke editor GitHub.
 5. Klik **Commit changes...** dan simpan ke branch `main`.
+6. Di GitHub, buka **Settings** > **Pages** > pada bagian **Source**, pilih **GitHub Actions**.
+
+#### Opsi B: Deploy Cepat via `gh-pages` Branch dari Terminal Lokal
+
+Jika Anda mengkloning repo ke laptop/komputer Anda:
+```bash
+# Install dependencies
+npm install
+
+# Deploy otomatis hasil build ke branch gh-pages
+npm run deploy
+```
+Lalu di GitHub **Settings** > **Pages**, pastikan **Source** adalah **Deploy from a branch** dan pilih branch **`gh-pages`** (folder `/ (root)`).
 
 ---
 
