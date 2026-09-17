@@ -43,112 +43,14 @@ import {
   FlaskConical,
   Waves,
   PenTool,
-  Map,
-  Key,
-  CheckCircle2,
-  AlertCircle,
-  RotateCcw,
-  Clock
+  Map
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Logo } from './components/Logo';
-import { ApiKeyModal } from './components/ApiKeyModal';
 
-// Robustly retrieve API key across Vite, Vercel, Node, and browser environments
-const getInitialEnvApiKey = (): string => {
-  // 1. Check Vite standard client environment variables (primary on Vercel)
-  try {
-    const metaEnv = (import.meta as any)?.env;
-    if (metaEnv) {
-      const viteKey = 
-        metaEnv.VITE_GEMINI_API_KEY ||
-        metaEnv.GEMINI_API_KEY ||
-        metaEnv.VITE_API_KEY ||
-        metaEnv.API_KEY;
-      if (viteKey && typeof viteKey === 'string' && viteKey.trim()) {
-        return viteKey.trim();
-      }
-    }
-  } catch {
-    // Ignore error
-  }
-
-  // 2. Check process.env (injected by vite.config.ts define or Node runtime)
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      const procKey = 
-        process.env.VITE_GEMINI_API_KEY ||
-        process.env.GEMINI_API_KEY ||
-        process.env.VITE_API_KEY ||
-        process.env.API_KEY;
-      if (procKey && typeof procKey === 'string' && procKey.trim()) {
-        return procKey.trim();
-      }
-    }
-  } catch {
-    // Ignore error
-  }
-
-  return '';
-};
-
-const GEMINI_API_KEY = getInitialEnvApiKey();
-
-// Fallback models if high-demand/rate-limit occurs on primary
-const CANDIDATE_IMAGE_MODELS = [
-  'gemini-2.5-flash-image',
-  'gemini-3.1-flash-lite-image',
-  'gemini-3.1-flash-image'
-];
-
-/**
- * Optimizes image client-side before sending to Gemini API.
- * Drastically reduces payload from ~8MB to ~250KB, preventing 429 TPM/size limits and speeding up generation.
- */
-async function optimizeImageForApi(dataUrl: string, maxDim = 1280): Promise<{ base64Data: string; mimeType: string }> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      let width = img.width;
-      let height = img.height;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, width, height);
-        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
-        const parts = optimizedDataUrl.split(',');
-        resolve({
-          base64Data: parts[1],
-          mimeType: 'image/jpeg',
-        });
-        return;
-      }
-      const parts = dataUrl.split(',');
-      const mime = dataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-      resolve({ base64Data: parts[1], mimeType: mime });
-    };
-    img.onerror = () => {
-      const parts = dataUrl.split(',');
-      const mime = dataUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-      resolve({ base64Data: parts[1], mimeType: mime });
-    };
-    img.src = dataUrl;
-  });
-}
+// Initialize Gemini AI
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 type Mode = 'classic-seinen' | 'modern-seinen' | 'sketch' | 'vector' | 'pixel-art' | 'photo-hd' | 'ghibli' | 'cyberpunk' | 'silhouette' | 'neo-pop' | 'hyper-anime' | 'comic' | 'urban-chibi' | 'comic-cartoon' | 'anime-redraw' | 'graffiti-mask' | 'automotive-vibes' | 'pixar-remaster' | 'artsy-experimental' | 'korean-webtoon' | 'blue-ink-sketch' | 'vintage-travel-sketch';
 
@@ -161,54 +63,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [hoveredDesc, setHoveredDesc] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState<string>('');
-  const [retryCountdown, setRetryCountdown] = useState<number>(0);
-  const [isRateLimitedError, setIsRateLimitedError] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Timer for cooldown countdown
-  React.useEffect(() => {
-    if (retryCountdown <= 0) return;
-    const timer = setInterval(() => {
-      setRetryCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [retryCountdown]);
-
-  // Client-side API key management for deployed website support
-  const [customApiKey, setCustomApiKey] = useState<string>(() => {
-    try {
-      return localStorage.getItem('three_mister_gemini_api_key') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
-  const [keyModalError, setKeyModalError] = useState<string | null>(null);
-
-  const envApiKey = (GEMINI_API_KEY || '').trim();
-  const activeApiKey = customApiKey.trim() || envApiKey;
-
-  const handleSaveKey = (key: string) => {
-    const trimmed = key.trim();
-    setCustomApiKey(trimmed);
-    try {
-      localStorage.setItem('three_mister_gemini_api_key', trimmed);
-    } catch (e) {
-      console.error('Failed to save to localStorage:', e);
-    }
-    setError(null);
-    setKeyModalError(null);
-  };
-
-  const handleClearKey = () => {
-    setCustomApiKey('');
-    try {
-      localStorage.removeItem('three_mister_gemini_api_key');
-    } catch (e) {
-      console.error('Failed to remove from localStorage:', e);
-    }
-  };
 
   const styleModes = [
     { id: 'classic-seinen', label: 'Classic', desc: 'Anime klasik 90-an dengan shading kontras.', icon: <Wind />, color: 'text-red-900' },
@@ -275,23 +130,17 @@ export default function App() {
     const targetImage = isEnhancing ? generatedImage : sourceImage;
     if (!targetImage) return;
 
-    if (!activeApiKey) {
-      const msg = 'API Key Google Gemini belum diatur. Silakan masukkan API Key gratis Anda agar transformasi gambar dapat berjalan di website ini.';
-      setError(msg);
-      setKeyModalError(msg);
-      setIsKeyModalOpen(true);
+    if (!GEMINI_API_KEY) {
+      setError('API Key tidak ditemukan. Harap konfigurasi di Secrets panel.');
       return;
     }
 
     setIsGenerating(true);
-    setGenerationStatus('Menyiapkan & mengoptimalkan gambar...');
     setError(null);
-    setKeyModalError(null);
-    setIsRateLimitedError(false);
 
     try {
-      // 1. Optimize image client-side to prevent 429 token/request-size limits
-      const { base64Data, mimeType } = await optimizeImageForApi(targetImage, 1280);
+      const base64Data = targetImage.split(',')[1];
+      const mimeType = targetImage.split(';')[0].split(':')[1];
 
       let prompt = '';
       if (isEnhancing) {
@@ -328,155 +177,61 @@ export default function App() {
         }
       }
 
-      const ai = new GoogleGenAI({ apiKey: activeApiKey });
-      let foundImageResult: string | null = null;
-      let lastErr: any = null;
-
-      // Try candidate models with retry & fallback
-      for (let m = 0; m < CANDIDATE_IMAGE_MODELS.length; m++) {
-        const modelName = CANDIDATE_IMAGE_MODELS[m];
-        const maxRetries = 2; // total 3 attempts per model
-
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-          try {
-            const friendlyName = modelName.includes('3.1-flash-lite')
-              ? 'Gemini 3.1 Flash-Lite'
-              : modelName.includes('3.1-flash')
-              ? 'Gemini 3.1 Flash'
-              : 'Gemini 2.5 Flash';
-
-            if (m > 0 || attempt > 0) {
-              setGenerationStatus(`Memproses dengan ${friendlyName} (Percobaan ${attempt + 1}/${maxRetries + 1})...`);
-            } else {
-              setGenerationStatus(`Mengirim instruksi seni ke ${friendlyName}...`);
-            }
-
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: {
-                parts: [
-                  {
-                    inlineData: {
-                      data: base64Data,
-                      mimeType: mimeType,
-                    },
-                  },
-                  {
-                    text: prompt,
-                  },
-                ],
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType,
               },
-            });
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      });
 
-            const candidates = response.candidates || [];
-            const parts = candidates[0]?.content?.parts || [];
+      let foundImage = false;
+      const candidates = response.candidates || [];
+      const parts = candidates[0]?.content?.parts || [];
 
-            for (const part of parts) {
-              if (part.inlineData) {
-                foundImageResult = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-                break;
-              } else if (part.text) {
-                console.warn('AI returned text instead of image:', part.text);
-              }
-            }
-
-            if (foundImageResult) {
-              setGeneratedImage(foundImageResult);
-              break;
-            } else {
-              throw new Error('AI tidak menghasilkan data gambar. Mencoba model lain...');
-            }
-          } catch (err: any) {
-            lastErr = err;
-            const errorMsg = err?.message || String(err);
-            const errorStr = typeof err === 'string' ? err : JSON.stringify(err);
-
-            const isLeakedKey = errorStr.includes('reported as leaked') || errorMsg.includes('reported as leaked') || errorStr.includes('leaked');
-            const isForbidden = errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED') || err?.status === 403;
-            const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid');
-
-            if (isLeakedKey || isForbidden || isInvalidKey) {
-              // Stop retrying immediately if key is invalid/blocked
-              throw err;
-            }
-
-            const isRateLimit =
-              errorStr.includes('429') ||
-              errorStr.includes('RESOURCE_EXHAUSTED') ||
-              errorStr.includes('high demand') ||
-              errorStr.includes('temporarily overloaded') ||
-              errorStr.includes('Quota exceeded') ||
-              errorStr.includes('503') ||
-              err?.status === 429 ||
-              err?.status === 503;
-
-            if (isRateLimit) {
-              if (attempt < maxRetries) {
-                const waitSecs = 2 + attempt * 2; // 2s, 4s backoff
-                for (let s = waitSecs; s > 0; s--) {
-                  setGenerationStatus(
-                    `Server Gemini sedang padat. Menunggu ${s} detik lalu mencoba ulang otomatis... (${attempt + 1}/${maxRetries})`
-                  );
-                  await new Promise((r) => setTimeout(r, 1000));
-                }
-                continue;
-              } else if (m < CANDIDATE_IMAGE_MODELS.length - 1) {
-                setGenerationStatus('Kapasitas model penuh. Beralih ke model cadangan Gemini...');
-                await new Promise((r) => setTimeout(r, 1200));
-                break; // Break inner loop, try next model in outer loop
-              }
-            }
-
-            // For other non-rate-limit errors on the current model, break and try next model
-            break;
-          }
+      for (const part of parts) {
+        if (part.inlineData) {
+          setGeneratedImage(`data:${part.inlineData.mimeType};base64,${part.inlineData.data}`);
+          foundImage = true;
+          break;
+        } else if (part.text && !foundImage) {
+           // If model returns text instead of image, it might be a safety refusal or error
+           console.warn('AI returned text instead of image:', part.text);
         }
-
-        if (foundImageResult) break;
       }
 
-      if (!foundImageResult && lastErr) {
-        throw lastErr;
+      if (!foundImage) {
+        throw new Error('AI gagal merender gambar. Ini mungkin karena filter keamanan atau batas teknis. Silakan coba foto lain atau hubungi admin.');
       }
     } catch (err: any) {
       console.error('Generation error:', err);
       
-      const errorMsg = err?.message || String(err);
+      let errorMessage = `Gagal memproses gambar ${mode}. Harap coba lagi nanti.`;
       const errorStr = typeof err === 'string' ? err : JSON.stringify(err);
       
-      const isLeakedKey = errorStr.includes('reported as leaked') || errorMsg.includes('reported as leaked') || errorStr.includes('leaked');
-      const isForbidden = errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED') || err?.status === 403;
-      const isInvalidKey = errorStr.includes('API_KEY_INVALID') || errorMsg.includes('API key not valid');
-
-      if (isLeakedKey) {
-        const detail = 'API Key yang digunakan dilaporkan bocor (leaked) dan telah dinonaktifkan permanen oleh Google demi keamanan. Silakan masukkan API Key Gemini baru Anda (gratis di Google AI Studio).';
-        setError(detail);
-        setKeyModalError(detail);
-        setIsKeyModalOpen(true);
-      } else if (isForbidden || isInvalidKey) {
-        const detail = 'Akses ditolak (Error 403 / API Key tidak valid). Silakan periksa kembali atau masukkan API Key Gemini baru Anda.';
-        setError(detail);
-        setKeyModalError(detail);
-        setIsKeyModalOpen(true);
-      } else if (
+      if (
         errorStr.includes('429') || 
         errorStr.includes('RESOURCE_EXHAUSTED') || 
         errorStr.includes('high demand') ||
-        errorStr.includes('temporarily overloaded') ||
-        errorStr.includes('Quota exceeded') ||
         err.status === 429
       ) {
-        setIsRateLimitedError(true);
-        setRetryCountdown(30); // 30 seconds cooldown timer
-        setError('Server Google Gemini sedang sangat padat (High Demand) atau kuota permintaan per menit tercapai. Sistem telah mencoba cadangan model.');
+        errorMessage = 'Server sedang sangat sibuk (High Demand) atau Kuota habis. Spikes permintaan ini biasanya sementara. Silakan coba lagi sebentar lagi (tunggu ~30 detik).';
       } else if (err.message) {
-        setError(err.message);
-      } else {
-        setError(`Gagal memproses gambar ${mode}. Harap coba lagi nanti.`);
+        errorMessage = err.message;
       }
+      
+      setError(errorMessage);
     } finally {
       setIsGenerating(false);
-      setGenerationStatus('');
     }
   };
 
@@ -511,30 +266,8 @@ export default function App() {
             </span>
           </div>
           
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setKeyModalError(null);
-                setIsKeyModalOpen(true);
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-xs cursor-pointer ${
-                activeApiKey 
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' 
-                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 animate-pulse'
-              }`}
-              title="Konfigurasi API Key Gemini untuk website deploy"
-            >
-              <span className="relative flex h-2 w-2">
-                <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${activeApiKey ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`} />
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${activeApiKey ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              </span>
-              <Key size={13} className={activeApiKey ? 'text-emerald-600' : 'text-amber-600'} />
-              <span className="whitespace-nowrap font-bold">
-                {activeApiKey ? (customApiKey ? 'API Key Kustom' : 'API Key Aktif') : 'Atur API Key'}
-              </span>
-            </button>
-
-            <div className="hidden md:flex items-center gap-4 text-sm font-medium text-slate-500 pl-2 border-l border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-4 text-sm font-medium text-slate-500">
               <span className="flex items-center gap-1"><ShieldCheck size={14} className="text-green-500" /> Secure</span>
               <span className="flex items-center gap-1"><Zap size={14} className="text-amber-500" /> Fast</span>
             </div>
@@ -700,103 +433,14 @@ export default function App() {
                       <div className="absolute inset-x-0 h-full w-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
                     </button>
                     
-                    {/* Status Key Indicator */}
-                    <div className="flex items-center justify-between px-2 text-xs">
-                      {activeApiKey ? (
-                        <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70">
-                          <CheckCircle2 size={13} className="text-emerald-600" />
-                          <span>Gemini AI Connected ({customApiKey ? 'Kunci Kustom' : 'Kunci Bawaan'})</span>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setKeyModalError('Silakan masukkan API Key Gemini gratis Anda untuk mulai mentransformasi gambar.');
-                            setIsKeyModalOpen(true);
-                          }}
-                          className="flex items-center gap-1.5 font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300 transition-colors cursor-pointer"
-                        >
-                          <AlertCircle size={13} className="text-amber-600" />
-                          <span>Perlu API Key — Klik di Sini</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setKeyModalError(null);
-                          setIsKeyModalOpen(true);
-                        }}
-                        className="text-[11px] text-slate-500 hover:text-[#800000] underline font-medium cursor-pointer"
-                      >
-                        Kelola Key
-                      </button>
-                    </div>
-                    
                     {error && (
                       <motion.div 
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`flex flex-col gap-3 p-4 rounded-2xl border shadow-sm ${
-                          isRateLimitedError 
-                            ? 'bg-amber-50/95 border-amber-200 text-amber-950' 
-                            : 'bg-red-50 border-red-200 text-red-700'
-                        }`}
+                        className="flex items-center gap-3 text-red-500 text-sm font-medium bg-red-50 p-4 rounded-xl border border-red-100"
                       >
-                        <div className="flex items-start gap-3">
-                          {isRateLimitedError ? (
-                            <Clock size={20} className="text-amber-600 shrink-0 mt-0.5 animate-pulse" />
-                          ) : (
-                            <Info size={18} className="text-red-500 shrink-0 mt-0.5" />
-                          )}
-                          <div className="space-y-1">
-                            <p className="font-bold text-sm">
-                              {isRateLimitedError ? 'Server Sedang Sibuk (Rate Limit)' : 'Terjadi Kendala'}
-                            </p>
-                            <p className="text-xs leading-relaxed opacity-90">{error}</p>
-                          </div>
-                        </div>
-
-                        {isRateLimitedError && (
-                          <div className="bg-amber-100/70 border border-amber-300/60 rounded-xl px-3 py-2 flex items-center justify-between text-xs font-semibold text-amber-900">
-                            <span className="flex items-center gap-1.5">
-                              <RefreshCw size={13} className={retryCountdown > 0 ? "animate-spin" : ""} />
-                              Siklus Kuota Pulih:
-                            </span>
-                            <span className="px-2 py-0.5 bg-amber-200 rounded-md font-mono font-bold">
-                              {retryCountdown > 0 ? `${retryCountdown} detik` : 'Siap dicoba!'}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {isRateLimitedError && (
-                            <button
-                              type="button"
-                              onClick={() => generateImage(false)}
-                              disabled={isGenerating}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#800000] hover:bg-red-900 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
-                            >
-                              <RotateCcw size={13} />
-                              {retryCountdown > 0 ? `Coba Lagi (${retryCountdown}s)` : 'Coba Lagi Sekarang'}
-                            </button>
-                          )}
-                          
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setKeyModalError(error);
-                              setIsKeyModalOpen(true);
-                            }}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer ${
-                              isRateLimitedError 
-                                ? 'bg-white hover:bg-amber-100/80 text-amber-900 border border-amber-300' 
-                                : 'bg-[#800000] hover:bg-red-900 text-white'
-                            }`}
-                          >
-                            <Key size={13} />
-                            Atur / Ganti API Key Baru
-                          </button>
-                        </div>
+                        <Info size={18} />
+                        {error}
                       </motion.div>
                     )}
                   </div>
@@ -883,19 +527,10 @@ export default function App() {
                       </div>
                       <div className="space-y-4 max-w-sm">
                         <h4 className="text-2xl font-black text-slate-900">Menyihir Fotomu...</h4>
-                        <div className="min-h-[50px] flex items-center justify-center">
-                          {generationStatus ? (
-                            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-red-50 text-[#800000] rounded-xl text-xs font-bold border border-red-200/80 shadow-sm animate-pulse">
-                              <Cpu size={14} className="shrink-0" />
-                              {generationStatus}
-                            </span>
-                          ) : (
-                            <p className="text-slate-500 leading-relaxed font-medium text-sm">
-                              Sedang merender gaya <span className="text-[#800000] font-bold uppercase">{mode}</span> 
-                              {isHD && ' dalam resolusi tinggi'}. Proses ini membutuhkan waktu sekitar 10-20 detik.
-                            </p>
-                          )}
-                        </div>
+                        <p className="text-slate-500 leading-relaxed font-medium">
+                          Sedang merender gaya <span className="text-[#800000] font-bold uppercase">{mode}</span> 
+                          {isHD && ' dalam resolusi tinggi'}. Proses ini membutuhkan waktu sekitar 10-20 detik.
+                        </p>
                       </div>
                       
                       {/* Mock loading steps */}
@@ -1007,17 +642,6 @@ export default function App() {
           </div>
         </div>
       </footer>
-
-      {/* API Key Modal for Deployed Website Access */}
-      <ApiKeyModal
-        isOpen={isKeyModalOpen}
-        onClose={() => setIsKeyModalOpen(false)}
-        customApiKey={customApiKey}
-        onSaveKey={handleSaveKey}
-        onClearKey={handleClearKey}
-        hasEnvKey={Boolean(envApiKey)}
-        initialError={keyModalError}
-      />
     </div>
   );
 }
