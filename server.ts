@@ -69,16 +69,12 @@ async function startServer() {
   // Image transformation endpoint
   app.post("/api/transform", async (req, res) => {
     try {
-      const apiKey = 
-        (req.body.apiKey as string)?.trim() ||
-        (req.headers["x-gemini-api-key"] as string)?.trim() ||
-        getGeminiApiKey();
-
+      const apiKey = getGeminiApiKey();
       if (!apiKey) {
         return res.json({
           success: false,
           fallbackToLocalStylizer: true,
-          notice: "API Key belum terkonfigurasi. Silakan atur Gemini API Key Anda.",
+          notice: "API Key belum terkonfigurasi. Menerapkan Artistic Styling Engine secara langsung.",
         });
       }
 
