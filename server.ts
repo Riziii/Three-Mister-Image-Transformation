@@ -69,10 +69,16 @@ async function startServer() {
   // Image transformation endpoint
   app.post("/api/transform", async (req, res) => {
     try {
-      const apiKey = getGeminiApiKey();
+      const apiKey = 
+        (req.body.apiKey as string)?.trim() ||
+        (req.headers["x-gemini-api-key"] as string)?.trim() ||
+        getGeminiApiKey();
+
       if (!apiKey) {
-        return res.status(400).json({
-          error: "API Key belum terkonfigurasi. Harap tambahkan GEMINI_API_KEY yang aktif di menu Settings > Secrets AI Studio.",
+        return res.json({
+          success: false,
+          fallbackToLocalStylizer: true,
+          notice: "API Key belum terkonfigurasi. Silakan atur Gemini API Key Anda.",
         });
       }
 
@@ -168,14 +174,19 @@ async function startServer() {
         console.error("Gemini API error:", errorStr);
 
         if (errorStr.includes("ACCOUNT_STATE_INVALID") || errorStr.includes("deleted or disabled") || lastError?.status === 401) {
-          return res.status(401).json({
-            error: "Service account untuk API Key Anda dinonaktifkan atau telah dihapus. Silakan buat API Key baru di Google AI Studio dan perbarui di Settings > Secrets.",
+          // Gracefully fallback to artistic styling engine so user never experiences an error crash
+          return res.json({
+            success: false,
+            fallbackToLocalStylizer: true,
+            notice: "Service account untuk API Key default nonaktif. Menerapkan Artistic Styling Engine secara mulus.",
           });
         }
 
         if (errorStr.includes("API_KEY_INVALID") || errorStr.includes("API key not valid")) {
-          return res.status(401).json({
-            error: "API Key tidak valid. Harap periksa kembali GEMINI_API_KEY di menu Settings > Secrets.",
+          return res.json({
+            success: false,
+            fallbackToLocalStylizer: true,
+            notice: "API Key tidak valid atau belum diatur. Menerapkan Artistic Styling Engine.",
           });
         }
 
@@ -185,17 +196,21 @@ async function startServer() {
             success: false,
             quotaExceeded: true,
             fallbackToLocalStylizer: true,
-            error: "Batas kuota Gemini free-tier tercapai (limit: 0). Menerapkan Artistic Styling Engine...",
+            notice: "Batas kuota Gemini free-tier tercapai. Menerapkan Artistic Styling Engine.",
           });
         }
 
-        return res.status(500).json({
-          error: "Gagal memproses gambar dengan AI. " + (lastError?.message || "Silakan coba lagi dengan foto lain."),
+        return res.json({
+          success: false,
+          fallbackToLocalStylizer: true,
+          notice: "Menerapkan Artistic Styling Engine untuk memproses gambar Anda.",
         });
       }
 
-      return res.status(500).json({
-        error: "AI tidak menghasilkan gambar. Silakan coba foto lain atau sesuaikan gaya.",
+      return res.json({
+        success: false,
+        fallbackToLocalStylizer: true,
+        notice: "Menerapkan Artistic Styling Engine untuk memproses gambar Anda.",
       });
     } catch (err: any) {
       console.error("Server transform error:", err);
