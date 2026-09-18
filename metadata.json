@@ -1,6 +1,6 @@
 {
-  "name": "Three Mister Image Transformation",
-  "description": "Professional image transformation and artistic styling powered by Three Mister and Gemini AI.",
+  "name": "3MR Image Transformation - Mode Akses Bebas Frame",
+  "description": "Transformasi foto artistik AI dengan pilihan Mode Akses Bebas Frame: Kanvas Bebas Pan & Zoom, Tirai Geser Interaktif, Bioskop Borderless, dan Jendela Mengambang.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
